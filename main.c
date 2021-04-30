@@ -12,9 +12,21 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <time.h>
 
 #define FILE_PATH "/Users/altair823/Desktop/data_structure/randdict_utf8.TXT"
 #define END_OF_WORD '\n'
+
+clock_t execute_time;
+//시간을 측정하는 함수
+void TimeCheckStart(){
+    execute_time = clock();
+}
+void TimeCheckEnd(){
+    clock_t end = clock();
+    printf("excute time is %f\n", (double)(end - execute_time) / CLOCKS_PER_SEC);
+    execute_time = clock();
+}
 
 /* 단어 구조체 */
 typedef struct{
@@ -51,14 +63,12 @@ void DestructWord(Word *word){
 /* 연결리스트 노드 구조체 */
 typedef struct node{
     Word *word;
-    struct node *previous_node;
     struct node *next_node;
 }Node;
 
 /* 단어를 받아 새 노드를 만드는 함수 */
 Node *CreateNode(Word *word){
     Node *new_node = malloc(sizeof(Node));
-    new_node->previous_node = NULL;
     new_node->next_node = NULL;
     new_node->word = CreateWord(word->eng_word, word->eng_word_len, word->kor_word, word->kor_word_len);
     return new_node;
@@ -76,14 +86,13 @@ void Insert(Node *before_node, Node *new_node, Node *index[]){
     if (before_node == NULL){
         printf("노드가 없습니다.");
     }
-    new_node->previous_node = before_node;
     new_node->next_node = before_node->next_node;
-    before_node->next_node->previous_node = new_node;
     before_node->next_node = new_node;
 
     int word_index = (int)(new_node->word->eng_word[0]) - 97;
-    if (index[word_index] == NULL || strcmp(index[word_index]->word->eng_word, new_node->word->eng_word) > 0){
-        index[word_index] = new_node;
+    if (index[word_index] == NULL || strcmp(index[word_index]->next_node->word->eng_word, new_node->word->eng_word) > 0){
+        //색인은 범위 바로 앞 노드를 가리킨다.
+        index[word_index] = before_node;
     }
 }
 
@@ -92,38 +101,43 @@ void Delete(Node *llist, Node *target_node){
 }
 
 /* 연결리스트에서 해당 단어의 자리를 찾는 함수.
- * 들어가야할 자리 바로 앞 노드 위치를 반환한다. */
+ * 더 큰 단어 바로 앞 노드 위치를 반환한다. */
 Node *SearchEngWord(Node *LList, const char *eng_word, Node *index[]){
     Node *current_node = LList->next_node;
+    Node *previous_node = LList;
     int word_index = (int)(eng_word[0]) - 97;
 
-    //색인에 없다면 헤드부터 리니어 서치.
+    //색인이 없다면 헤드부터 리니어 서치.
     if (index[word_index] == NULL){
         if (current_node->word == NULL){
             return current_node;
         }
         while (strcmp(current_node->word->eng_word, eng_word) < 0){
+            previous_node = current_node;
             current_node = current_node->next_node;
             if (current_node == LList){
                 break;
             }
         }
-        return current_node->previous_node;
+        return previous_node;
     }
-    //색인에 있고 그것보다 작다면 그 바로 앞 위치 반환.
-    else if (strcmp(index[word_index]->word->eng_word, eng_word) > 0){
-        return index[word_index]->previous_node;
+    //색인이 있고 그 첫 노드보다 작다면 그 바로 앞 위치 반환.
+    else if (strcmp(index[word_index]->next_node->word->eng_word, eng_word) > 0){
+        return index[word_index];
     }
-    //색인에 있고 그것보다 크다면 그 색인에서부터 리니어 서치.
+    //색인에 있고 그것보다 크거나 같다면 그 색인에서부터 리니어 서치.
     else{
-        current_node = index[word_index];
+        previous_node = index[word_index];
+        current_node = index[word_index]->next_node;
         while (strcmp(current_node->word->eng_word, eng_word) < 0){
+            previous_node = current_node;
             current_node = current_node->next_node;
-            if (current_node == LList){
+            //헤드로 돌아오거나 다음 색인으로 넘어가면 탐색 종료.
+            if (current_node == LList || current_node == index[word_index + 1]){
                 break;
             }
         }
-        return current_node->previous_node;
+        return previous_node;
     }
 
 
@@ -230,7 +244,6 @@ Word* ReadAWord(FILE *dict_file_ptr){
 Node *ReadDictFile(Node *index[], int *node_count){
     Node *llist_head = malloc(sizeof(Node));
     llist_head->next_node = llist_head;
-    llist_head->previous_node = llist_head;
     llist_head->word = NULL;
 
     Word *temp_word;
@@ -272,9 +285,9 @@ void SearchDict(Node *llist, Node *index[], int *node_count){
     /* SearchEngWord 함수는 주어진 단어보다 사전 순서상 하나 앞선 단어의 위치를 반환한다.
      * 따라서 그 단어 노드의 next_node가 찾는 단어와 같다면 탐색에 성공한 것이고,
      * 다르면 단어가 사전에 없어서 탐색에 실패한 것이다. */
-    Node *target_ptr = SearchEngWord(llist, input_eng_word, index)->next_node;
-    if (strcmp(target_ptr->word->eng_word, input_eng_word) == 0){
-        printf("%s\n", target_ptr->word->kor_word);
+    Node *before_target_ptr = SearchEngWord(llist, input_eng_word, index);
+    if (strcmp(before_target_ptr->next_node->word->eng_word, input_eng_word) == 0){
+        printf("%s\n", before_target_ptr->next_node->word->kor_word);
     }
     else{
         printf("단어가 존재하지 않습니다. 뜻을 추가하세요. (추가하지 않으려면 공백)\n");
@@ -282,7 +295,7 @@ void SearchDict(Node *llist, Node *index[], int *node_count){
         int input_kor_word_len = InputWord(&input_kor_word);
         if (strcmp(input_kor_word, " ") != 0 && strcmp(input_kor_word, "\n") != 0){
             Node *new_word_node = CreateNode(CreateWord(input_eng_word, input_eng_word_len, input_kor_word, input_kor_word_len));
-            Insert(target_ptr->previous_node, new_word_node, index);
+            Insert(before_target_ptr, new_word_node, index);
             (*node_count)++;
             printf("%s : %s 가 추가되었습니다. (총 %d개 단어)\n", new_word_node->word->eng_word, new_word_node->word->kor_word, *node_count);
         }
@@ -292,9 +305,14 @@ void SearchDict(Node *llist, Node *index[], int *node_count){
 }
 
 int main() {
+
+    //색인은 해당 범위의 바로 앞 노드를 가리킨다.
     Node *index[26] = {NULL, };
     int llist_node_count = 0;
+    //TimeCheckStart();
     Node *llist = ReadDictFile(index, &llist_node_count);
+    //TimeCheckEnd();
+    Display(llist);
     while (1) {
         SearchDict(llist, index, &llist_node_count);
     }
