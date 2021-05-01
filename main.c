@@ -113,16 +113,15 @@ Node *SearchEngWord(Node *LList, char *eng_word, Node *index[]){
 
 #ifndef INDEX_SEARCH
     if (current_node->word == NULL){
-        return previous_node;
+        return current_node->previous_node;
     }
     while (strcmp(current_node->word->eng_word, eng_word) < 0){
-        previous_node = current_node;
         current_node = current_node->next_node;
         if (current_node == LList){
             break;
         }
     }
-    return previous_node;
+    return current_node->previous_node;
 #endif
 
 #ifdef INDEX_SEARCH
@@ -337,7 +336,7 @@ int main() {
     TimeCheckStart();
     Node *llist = ReadDictFile(index, &llist_node_count);
     TimeCheckEnd();
-    Display(llist);
+    //Display(llist);
     while (1) {
         SearchDict(llist, index, &llist_node_count);
     }
