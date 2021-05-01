@@ -14,6 +14,8 @@
 #include <ctype.h>
 #include <time.h>
 
+#define INDEX_SEARCH
+
 #define FILE_PATH "/Users/altair823/Desktop/data_structure/randdict_utf8.TXT"
 #define END_OF_WORD '\n'
 
@@ -64,12 +66,14 @@ void DestructWord(Word *word){
 typedef struct node{
     Word *word;
     struct node *next_node;
+    struct node *previous_node;
 }Node;
 
 /* 단어를 받아 새 노드를 만드는 함수 */
 Node *CreateNode(Word *word){
     Node *new_node = malloc(sizeof(Node));
     new_node->next_node = NULL;
+    new_node->previous_node = NULL;
     new_node->word = CreateWord(word->eng_word, word->eng_word_len, word->kor_word, word->kor_word_len);
     return new_node;
 }
@@ -86,13 +90,15 @@ void Insert(Node *before_node, Node *new_node, Node *index[]){
     if (before_node == NULL){
         printf("노드가 없습니다.");
     }
+    new_node->previous_node = before_node;
     new_node->next_node = before_node->next_node;
+    before_node->next_node->previous_node = new_node;
     before_node->next_node = new_node;
 
+
     int word_index = (int)(new_node->word->eng_word[0]) - 97;
-    if (index[word_index] == NULL || strcmp(index[word_index]->next_node->word->eng_word, new_node->word->eng_word) > 0){
-        //색인은 범위 바로 앞 노드를 가리킨다.
-        index[word_index] = before_node;
+    if (index[word_index] == NULL || strcmp(index[word_index]->word->eng_word, new_node->word->eng_word) >= 0){
+        index[word_index] = new_node;
     }
 }
 
@@ -102,44 +108,62 @@ void Delete(Node *llist, Node *target_node){
 
 /* 연결리스트에서 해당 단어의 자리를 찾는 함수.
  * 더 큰 단어 바로 앞 노드 위치를 반환한다. */
-Node *SearchEngWord(Node *LList, const char *eng_word, Node *index[]){
+Node *SearchEngWord(Node *LList, char *eng_word, Node *index[]){
     Node *current_node = LList->next_node;
-    Node *previous_node = LList;
-    int word_index = (int)(eng_word[0]) - 97;
 
+#ifndef INDEX_SEARCH
+    if (current_node->word == NULL){
+        return previous_node;
+    }
+    while (strcmp(current_node->word->eng_word, eng_word) < 0){
+        previous_node = current_node;
+        current_node = current_node->next_node;
+        if (current_node == LList){
+            break;
+        }
+    }
+    return previous_node;
+#endif
+
+#ifdef INDEX_SEARCH
+    int word_index = (int)(eng_word[0]) - 97;
     //색인이 없다면 헤드부터 리니어 서치.
     if (index[word_index] == NULL){
         if (current_node->word == NULL){
-            return current_node;
+            return current_node->previous_node;
         }
         while (strcmp(current_node->word->eng_word, eng_word) < 0){
-            previous_node = current_node;
             current_node = current_node->next_node;
             if (current_node == LList){
                 break;
             }
         }
-        return previous_node;
+        return current_node->previous_node;
     }
-    //색인이 있고 그 첫 노드보다 작다면 그 바로 앞 위치 반환.
-    else if (strcmp(index[word_index]->next_node->word->eng_word, eng_word) > 0){
-        return index[word_index];
+    //색인이 있고 그 범위의 첫 노드보다 작다면 그 바로 앞 위치 반환.
+    else if (strcmp(index[word_index]->word->eng_word, eng_word) > 0){
+        while (current_node != index[word_index]->next_node){
+            current_node = current_node->next_node;
+        }
+        return current_node->previous_node;
     }
-    //색인에 있고 그것보다 크거나 같다면 그 색인에서부터 리니어 서치.
+    //색인이 있고 그 범위의 첫 노드보다 크거나 같다면 그 색인에서부터 리니어 서치.
     else{
-        previous_node = index[word_index];
-        current_node = index[word_index]->next_node;
+        if (word_index == 14){
+
+        }
+        current_node = index[word_index];
+
         while (strcmp(current_node->word->eng_word, eng_word) < 0){
-            previous_node = current_node;
             current_node = current_node->next_node;
             //헤드로 돌아오거나 다음 색인으로 넘어가면 탐색 종료.
             if (current_node == LList || current_node == index[word_index + 1]){
                 break;
             }
         }
-        return previous_node;
+        return current_node->previous_node;
     }
-
+#endif
 
 }
 
@@ -244,6 +268,7 @@ Word* ReadAWord(FILE *dict_file_ptr){
 Node *ReadDictFile(Node *index[], int *node_count){
     Node *llist_head = malloc(sizeof(Node));
     llist_head->next_node = llist_head;
+    llist_head->previous_node = llist_head;
     llist_head->word = NULL;
 
     Word *temp_word;
@@ -309,9 +334,9 @@ int main() {
     //색인은 해당 범위의 바로 앞 노드를 가리킨다.
     Node *index[26] = {NULL, };
     int llist_node_count = 0;
-    //TimeCheckStart();
+    TimeCheckStart();
     Node *llist = ReadDictFile(index, &llist_node_count);
-    //TimeCheckEnd();
+    TimeCheckEnd();
     Display(llist);
     while (1) {
         SearchDict(llist, index, &llist_node_count);
