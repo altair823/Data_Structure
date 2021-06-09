@@ -16,12 +16,15 @@
 #define MAX_FILE_LINE 200
 #define MAX_WORD_LENGTH 100
 #define END_OF_LINE '\n'
-#define FILE_PATH "/Users/altair823/Desktop/data_structure_sandbox/randdict_utf8.TXT"
+#define FILE_PATH "randdict_utf8.TXT"
 
-#define RED 1
-#define BLACK -1
-#define UNSET 0
 typedef char Color;
+#define RED 1
+#define BLACK (-1)
+#define UNSET 0
+
+#define RAND_WORD_COUNT 10
+
 
 typedef struct {
     char *eng;
@@ -57,14 +60,12 @@ typedef struct node{
  * There will be only two options. Left child or right child.
  */
 int CompareNode(Node *to_compare, Node *new_node){
-    if (to_compare ==NULL || new_node == NULL){
-        printf("efegeg");
-    }
     if (strcmp(to_compare->word->eng, new_node->word->eng) < 0){
         return -1;
-    }
-    else{
+    } else if (strcmp(to_compare->word->eng, new_node->word->eng) > 0){
         return 1;
+    } else{
+        return 0;
     }
 }
 
@@ -95,9 +96,13 @@ void SetLChild(Node *parent, Node *child) {
     }
 }
 
-void SetColor(Node *new_node, Color color){
-    if (new_node != NULL) {
-        new_node->color = color;
+void SetColor(Node *root, Node *target_node, Color color){
+    if (target_node == root)
+    {
+        target_node->color = BLACK;
+    }
+    if (target_node != root && target_node != NULL) {
+        target_node->color = color;
     }
 }
 
@@ -110,7 +115,8 @@ char GetColor(Node *node){
 }
 
 /*
- * Recursive function inserting a new node to binary tree by node comparing function.
+ * The recursive function inserting a new node to binary tree by node comparing function.
+ * Not balanced!
  */
 int InsertNode(Node **root, Node *new_node, int (*CompareFunc)(Node *, Node *)){
     int node_count = 0;
@@ -123,7 +129,7 @@ int InsertNode(Node **root, Node *new_node, int (*CompareFunc)(Node *, Node *)){
     switch (CompareFunc(*root, new_node)) {
         case -1: //left
             if ((*root)->lchild != NULL) {
-                node_count += InsertNode(&((*root)->lchild), new_node, CompareFunc);
+                node_count = InsertNode(&((*root)->lchild), new_node, CompareFunc);
             } else{
                 (*root)->lchild = new_node;
                 node_count++;
@@ -131,7 +137,7 @@ int InsertNode(Node **root, Node *new_node, int (*CompareFunc)(Node *, Node *)){
             break;
         case 1: //right
             if ((*root)->rchild != NULL) {
-                node_count += InsertNode(&((*root)->rchild), new_node, CompareFunc);
+                node_count = InsertNode(&((*root)->rchild), new_node, CompareFunc);
             } else{
                 (*root)->rchild = new_node;
                 node_count++;
@@ -141,19 +147,24 @@ int InsertNode(Node **root, Node *new_node, int (*CompareFunc)(Node *, Node *)){
     return node_count;
 }
 
+
+
 void SerialRedUncleRed(Node *root, Node *current_node, Node *uncle){
     Node *parent = current_node->parent;
     Node *g_parent = current_node->parent->parent;
     //set black the parent node.
-    SetColor(parent, BLACK);
+    SetColor(root, parent, BLACK);
     //set red the grand parent node if the g_parent node isn't root node.
-    if (g_parent != root) {
-        SetColor(g_parent, RED);
-    }
+    SetColor(root, g_parent, RED);
     //set black the uncle node.
-    SetColor(uncle, BLACK);
+    SetColor(root, uncle, BLACK);
 }
 
+/*
+ * XX means current and parent node are the same lchild or rchild of each parent.
+ * XY means current and parent node are different lchild or rchild of each parent.
+ * And the root of subtree(median of current, parent, grandparent) is determined by these.
+ */
 #define XX 0
 #define XY 1
 
@@ -191,8 +202,8 @@ void SerialRedUncleBlack(Node **root, Node *current_node, Node *uncle) {
             SetRChild(g_parent, parent->lchild);
             SetLChild(parent, g_parent);
         }
-        SetColor(parent, BLACK);
-        SetColor(g_parent, RED);
+        SetColor(*root, parent, BLACK);
+        SetColor(*root, g_parent, RED);
     }
     //if the median of three is current,
     else {
@@ -218,18 +229,18 @@ void SerialRedUncleBlack(Node **root, Node *current_node, Node *uncle) {
             SetLChild(parent, current_node->rchild);
             SetRChild(current_node, parent);
         }
-        SetColor(current_node, BLACK);
-        SetColor(g_parent, RED);
+        SetColor(*root, current_node, BLACK);
+        SetColor(*root, g_parent, RED);
     }
 
 }
 
 /*
- * Recursive function called when two red nodes appear in succession.
+ * The function checking serial two red nodes.
  */
-void IsSerialRedAppear(Node *root, Node *current_node){
+void IsSerialRedAppear(Node **root, Node *current_node){
     while (1) {
-        if (current_node == root || current_node->parent == root) {
+        if (current_node == *root || current_node->parent == *root) {
             return;
         }
         Node *parent = current_node->parent;
@@ -243,16 +254,15 @@ void IsSerialRedAppear(Node *root, Node *current_node){
             }
             //XYr
             if (GetColor(uncle) == RED) {
-                SerialRedUncleRed(root, current_node, uncle);
+                SerialRedUncleRed(*root, current_node, uncle);
                 current_node = g_parent;
                 continue;
             }
             //XYb
             else {
-                SerialRedUncleBlack(&root, current_node, uncle);
+                SerialRedUncleBlack(root, current_node, uncle);
                 return;
             }
-            //IsSerialRedAppear(root, g_parent);
         } else{
             return;
         }
@@ -260,9 +270,9 @@ void IsSerialRedAppear(Node *root, Node *current_node){
 }
 
 /*
- * In this function, node is inserted to B-tree by rules that make red-black tree.
+ * In this function, node is inserted to binary tree by rules that make red-black tree.
  */
-int InsertNodeBalanced(Node *root, Node **sub_root, Node *new_node, int (*CompareFunc)(Node *, Node *)) {
+int InsertNodeBalanced(Node **root, Node **sub_root, Node *new_node, int (*CompareFunc)(Node *, Node *)) {
     int node_count = 0;
     if (*sub_root == NULL){
         *sub_root = new_node;
@@ -297,18 +307,20 @@ int InsertNodeBalanced(Node *root, Node **sub_root, Node *new_node, int (*Compar
 
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
 
-int Get_height(Node *root){
+int GetTreeHeight(Node *root){
     int height = 0;
     if (root != NULL){
-        int left_height = Get_height(root->lchild);
-        int right_height = Get_height(root->rchild);
+        int left_height = GetTreeHeight(root->lchild);
+        int right_height = GetTreeHeight(root->rchild);
         height = 1 + MAX(left_height, right_height);
     }
     return height;
 }
 
+
+
 /*
- * Read 'A' Word from the dictionary file.
+ * Read a single Word from the dictionary file.
  * The 'Word' contains english word and korean word.
  */
 Word *ReadAWord(FILE *file){
@@ -355,38 +367,147 @@ Word *ReadAWord(FILE *file){
 }
 
 Node *ReadDictFile(FILE *file){
-    Node *b_tree = NULL;
+    Node *tree = NULL;
     Word *new_word = NULL;
     int node_count = 0;
     for (new_word = ReadAWord(file); new_word != NULL; new_word = ReadAWord(file)) {
         Node *new_node = CreateNode(new_word);
-        node_count += InsertNode(&b_tree, new_node, CompareNode);
+        node_count += InsertNode(&tree, new_node, CompareNode);
     }
     printf("사전 파일을 모두 읽었습니다. A 트리에는 %d개의 단어가 있습니다. \n", node_count);
-    return b_tree;
+    return tree;
 }
 
 Node *ReadDictFileBalanced(FILE *file){
-    Node *b_tree = NULL;
+    Node *tree = NULL;
     Word *new_word = NULL;
     int node_count = 0;
     for (new_word = ReadAWord(file); new_word != NULL; new_word = ReadAWord(file)) {
         Node *new_node = CreateNode(new_word);
-        node_count += InsertNodeBalanced(b_tree, &b_tree, new_node, CompareNode);
+        node_count += InsertNodeBalanced(&tree, &tree, new_node, CompareNode);
     }
     printf("사전 파일을 모두 읽었습니다. B 트리에는 %d개의 단어가 있습니다. \n", node_count);
-    return b_tree;
+    return tree;
+}
+
+typedef struct {
+    Node *node;
+    int height;
+}NodeAndHeight;
+
+/*
+ * The function that returns the node and its height by NodeAndHeight*, corresponding to a specific index.
+ * Traverse in preorder.
+ */
+NodeAndHeight *GetNodeByIndex(Node *root, int *index, int height){
+    Node *current = root;
+    NodeAndHeight *result = NULL;
+    if (*index == 0){
+        result = malloc(sizeof(NodeAndHeight));
+        result->node = current;
+        result->height = height;
+        return result;
+    }
+    if (current->lchild != NULL){
+        (*index)--;
+        result = GetNodeByIndex(current->lchild, index, height+1);
+        if (result != NULL){
+            return result;
+        }
+        if (*index == 0){
+            result = malloc(sizeof(NodeAndHeight));
+            result->node = current;
+            result->height = height;
+            return result;
+        }
+    }
+    if (current->rchild != NULL){
+        (*index)--;
+        result = GetNodeByIndex(current->rchild, index, height+1);
+        if (result != NULL){
+            return result;
+        }
+        if (*index == 0){
+            result = malloc(sizeof(NodeAndHeight));
+            result->node = current;
+            result->height = height;
+            return result;
+        }
+    }
+    return NULL;
+}
+
+NodeAndHeight **SelectRand10Word(Node* tree, int node_count){
+    NodeAndHeight **rand_node_arr = malloc(sizeof(NodeAndHeight *) * RAND_WORD_COUNT);
+    srand((unsigned int) clock());
+    for (int i = 0; i < RAND_WORD_COUNT; i++) {
+        int rand_index = rand() % node_count;
+        rand_node_arr[i] = GetNodeByIndex(tree, &rand_index, 0);
+    }
+    return rand_node_arr;
+}
+
+/*
+ * Search the height of given node.
+ */
+NodeAndHeight *GetNodeHeight(Node *root, Node *target, int(*CompareFunc)(Node *, Node *), int initial_height){
+    NodeAndHeight *result = NULL;
+    if (root != NULL){
+        switch (CompareFunc(root, target)) {
+            case -1:
+                if (root->lchild != NULL){
+                    result = GetNodeHeight(root->lchild, target, CompareFunc, initial_height+1);
+                    if (result != NULL){
+                        return result;
+                    }
+                } else{
+                    printf("%s는 존재하지 않는 단어 입니다\n", target->word->eng);
+                    return NULL;
+                }
+                break;
+            case 1:
+                if (root->rchild != NULL){
+                    result = GetNodeHeight(root->rchild, target, CompareFunc, initial_height+1);
+                    if (result != NULL){
+                        return result;
+                    }
+                } else{
+                    printf("%s는 존재하지 않는 단어 입니다\n", target->word->eng);
+                    return NULL;
+                }
+                break;
+            case 0:
+                result = malloc(sizeof(NodeAndHeight));
+                result->node = target;
+                result->height = initial_height;
+                return result;
+        }
+    }
+    return NULL;
 }
 
 int main(){
     FILE *Afile = fopen(FILE_PATH, "r");
     FILE *Bfile = fopen(FILE_PATH, "r");
-    Node *A_BTree = ReadDictFile(Afile);
-    int A_BTree_height = Get_height(A_BTree);
-    printf("A 트리의 전체 높이는 %d개 입니다. \n", A_BTree_height);
-    Node *B_BTree = ReadDictFileBalanced(Bfile);
-    int B_BTree_height = Get_height(B_BTree);
-    printf("B 트리의 전체 높이는 %d개 입니다. \n", B_BTree_height);
 
+    Node *A_Bi_Tree = ReadDictFile(Afile);
+    int A_tree_height = GetTreeHeight(A_Bi_Tree);
+    printf("A 트리의 전체 높이는 %d개 입니다. \n", A_tree_height);
+
+    Node *B_Bi_Tree = ReadDictFileBalanced(Bfile);
+    int B_tree_height = GetTreeHeight(B_Bi_Tree);
+    printf("B 트리의 전체 높이는 %d개 입니다. \n\n", B_tree_height);
+
+    printf("랜덤하게 선택된 10개의 단어들이 갖는 레벨을 두 트리에서 비교합니다.\n");
+    NodeAndHeight **rand_node_arr = SelectRand10Word(A_Bi_Tree, 48405);
+    for (int i = 0; i < RAND_WORD_COUNT; i++) {
+        printf("%s - %s / 깊이: %d\n", rand_node_arr[i]->node->word->eng, rand_node_arr[i]->node->word->kor, rand_node_arr[i]->height);
+    }
+    printf("\n");
+    NodeAndHeight **rand_node = malloc(sizeof(NodeAndHeight *) * RAND_WORD_COUNT);
+    for (int i = 0; i < RAND_WORD_COUNT; ++i) {
+        rand_node[i] = GetNodeHeight(B_Bi_Tree, rand_node_arr[i]->node, CompareNode, 0);
+        printf("%s - %s / 깊이: %d\n", rand_node[i]->node->word->eng, rand_node[i]->node->word->kor, rand_node[i]->height);
+    }
     return 0;
 }
